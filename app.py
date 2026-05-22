@@ -1,31 +1,17 @@
 from flask import Flask, render_template, jsonify, request
 from dotenv import load_dotenv
 import os
-
-from src.helper import download_hugging_face_embeddings
-from langchain_pinecone import PineconeVectorStore
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+import threading
 
 # 1. Load the secret API key
 load_dotenv()
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-if not PINECONE_API_KEY:
-    raise ValueError("PINECONE_API_KEY must be set in the environment.")
 
 # 2. Setup Flask App
 app = Flask(__name__)
 
-# 3. Connect to our Pinecone Database
-print("Loading Database Connection...")
-embeddings = download_hugging_face_embeddings()
-index_name = "medicalbot"
-docsearch = PineconeVectorStore.from_existing_index(
-    index_name=index_name,
-    embedding=embeddings
-)
-
-# 4. Create the "Retriever" that searches for the top 3 best paragraphs matching the user's question
-retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={"k": 3})
+rag_chain = None
+rag_lock = threading.Lock()
 
 # 5. The LangChain Logic: How to format the answer
 def format_docs(docs):
@@ -42,11 +28,39 @@ def generate_answer(inputs):
         f"(Note: For professional advice, please consult a healthcare provider.)"
     )
 
-# Chain it all together!
-rag_chain = (
-    {"context": retriever | format_docs, "input": RunnablePassthrough()}
-    | RunnableLambda(generate_answer)
-)
+def get_rag_chain():
+    global rag_chain
+
+    if rag_chain is not None:
+        return rag_chain
+
+    with rag_lock:
+        if rag_chain is not None:
+            return rag_chain
+
+        if not PINECONE_API_KEY:
+            raise ValueError("PINECONE_API_KEY must be set in the environment.")
+
+        from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+        from langchain_pinecone import PineconeVectorStore
+        from src.helper import download_hugging_face_embeddings
+
+        print("Loading Database Connection...")
+        embeddings = download_hugging_face_embeddings()
+        docsearch = PineconeVectorStore.from_existing_index(
+            index_name="medicalbot",
+            embedding=embeddings
+        )
+        retriever = docsearch.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": 3}
+        )
+
+        rag_chain = (
+            {"context": retriever | format_docs, "input": RunnablePassthrough()}
+            | RunnableLambda(generate_answer)
+        )
+        return rag_chain
 
 # 6. Web Routes
 @app.route("/")
@@ -67,7 +81,7 @@ def chat():
     print(f"User asking: {msg}")
     
     # Send the message through our LangChain pipeline
-    response = rag_chain.invoke(msg)
+    response = get_rag_chain().invoke(msg)
     return str(response)
 
 if __name__ == '__main__':
