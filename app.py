@@ -51,10 +51,7 @@ def generate_answer(inputs):
         f"{cleaned}\n\n"
         f"(Note: For professional advice, please consult a healthcare provider.)"
     )
-        f"Based on the Medical Book for your question '{question}':\n\n"
-        f"{context}\n\n"
-        f"(Note: For professional advice, please consult a healthcare provider.)"
-    )
+     
 
 def get_rag_chain():
     global rag_chain
