@@ -14,15 +14,43 @@ rag_chain = None
 rag_lock = threading.Lock()
 
 # 5. The LangChain Logic: How to format the answer
-def format_docs(docs):
-    return "\n\n".join(doc.page_content for doc in docs)
+import re
 
 def generate_answer(inputs):
     context = inputs.get("context", "")
     question = inputs.get("input", "")
+    
     if not context.strip():
         return "Sorry, I could not find relevant information in the medical book for your question."
+    
+    # Clean up the context
+    # Remove page numbers and formatting artifacts
+    cleaned = re.sub(r'GALE ENCYCLOPEDIA OF MEDICINE \d+', '', context)
+    cleaned = re.sub(r'GEM - \d+ to \d+ - A \d+/\d+/\d+ \d+:\d+ [AP]M Page \d+', '', cleaned)
+    cleaned = re.sub(r'Page \d+', '', cleaned)
+    
+    # Remove excessive whitespace and newlines
+    cleaned = re.sub(r'\n\n+', '\n\n', cleaned)
+    cleaned = re.sub(r' +', ' ', cleaned)
+    cleaned = cleaned.strip()
+    
+    # Remove duplicate paragraphs
+    paragraphs = cleaned.split('\n\n')
+    seen = set()
+    unique_paragraphs = []
+    for para in paragraphs:
+        para_clean = para.strip()
+        if para_clean and para_clean not in seen:
+            seen.add(para_clean)
+            unique_paragraphs.append(para_clean)
+    
+    cleaned = '\n\n'.join(unique_paragraphs)
+    
     return (
+        f"Based on the Medical Book for your question '{question}':\n\n"
+        f"{cleaned}\n\n"
+        f"(Note: For professional advice, please consult a healthcare provider.)"
+    )
         f"Based on the Medical Book for your question '{question}':\n\n"
         f"{context}\n\n"
         f"(Note: For professional advice, please consult a healthcare provider.)"
