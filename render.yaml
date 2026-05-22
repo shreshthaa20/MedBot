@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: medbot
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PINECONE_API_KEY
+        sync: false

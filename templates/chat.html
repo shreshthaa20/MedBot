@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedBot AI</title>
+    <!-- Link to our new premium CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- FontAwesome for the send icon -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="chat-container">
+        <!-- Header -->
+        <div class="chat-header">
+            <div class="bot-avatar"><i class="fa-solid fa-robot"></i></div>
+            <div class="header-info">
+                <h2>MedBot AI</h2>
+                <p>Medical Knowledge Assistant</p>
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-box" id="chat-box">
+            <div class="message bot-msg">
+                Hello! I am MediBot. I have memorized the entire Medical Book. What would you like to know?
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <form class="input-area" id="chat-form">
+            <input type="text" id="user-input" class="chat-input" placeholder="Ask a medical question..." autocomplete="off" required>
+            <button type="submit" class="send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+    </div>
+
+    <!-- The Javascript that connects to app.py -->
+    <script>
+        const chatForm = document.getElementById('chat-form');
+        const userInput = document.getElementById('user-input');
+        const chatBox = document.getElementById('chat-box');
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // 1. Add User Message to UI
+            addMessage(text, 'user-msg');
+            userInput.value = '';
+
+            // 2. Show Loading Animation
+            const loadingId = addLoading();
+
+            try {
+                // 3. Send Request to Flask
+                const formData = new FormData();
+                formData.append('msg', text);
+
+                const response = await fetch('/get', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.text();
+
+                // 4. Remove Loading & Show Bot Answer
+                document.getElementById(loadingId).remove();
+                addMessage(data, 'bot-msg');
+
+            } catch (error) {
+                document.getElementById(loadingId).remove();
+                addMessage("Sorry, the server is offline or an error occurred.", 'bot-msg');
+            }
+        });
+
+        function addMessage(text, className) {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            // Convert newlines to HTML breaks so it formats nicely
+            div.innerHTML = text.replace(/\n/g, '<br>');
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function addLoading() {
+            const id = 'loading-' + Date.now();
+            const div = document.createElement('div');
+            div.className = 'message bot-msg';
+            div.id = id;
+            div.innerHTML = `
+                <div class="loading">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+            `;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return id;
+        }
+    </script>
+</body>
+</html>
